@@ -1,0 +1,69 @@
+trigger:
+- main
+
+pool:
+  name: 'EpicBookCapstone'
+
+variables:
+  - group: Db-secrets
+  - name: azureServiceConnection
+    value: 'capstone-service-connection'
+  - name: VM_IP
+    value: '102.133.225.232'
+  - name: VM_USER
+    value: 'jecinta'
+  - name: DB_HOST
+    value: 'epicbook-mysql.mysql.database.azure.com'
+
+stages:
+- stage: DeployApp
+  displayName: 'Deploy EpicBook Application'
+  jobs:
+  - job: AnsibleJob
+    steps:
+    - script: |
+        sudo apt-get update -y
+        sudo apt-get install -y ansible unzip
+      displayName: 'System Prep'
+
+    - # Download your SSH keys from Secure Files
+    - task: DownloadSecureFile@1
+      name: sshPublicKey
+      inputs:
+        secureFile: 'ReactAppKey.pub'
+
+    - task: DownloadSecureFile@1
+      name: sshPrivateKey
+      inputs:
+        secureFile: 'ReactAppKey'
+
+    - script: |
+        echo "--- Validating key file ---"
+        chmod 600 $(sshPrivateKey.secureFilePath)
+        head -1 $(sshPrivateKey.secureFilePath)
+        tail -1 $(sshPublicKey.secureFilePath)
+        wc -l $(sshPublicKey.secureFilePath)
+        echo "--- Derived public key ---"
+        ssh-keygen -y -f $(sshPublicKey.secureFilePath)
+      displayName: 'Validate Key File'
+
+    - script: |
+        mkdir -p ~/.ssh
+        cp $(sshPrivateKey.secureFilePath) ~/.ssh/reactAppKey
+        chmod 600 ~/.ssh/reactAppKey
+        ssh-keyscan -H $(VM_IP) >> ~/.ssh/known_hosts
+      displayName: 'Configure SSH Access'
+
+    - script: |
+        ssh -i ~/.ssh/reactAppKey -o StrictHostKeyChecking=no $(VM_USER)@$(VM_IP) "echo SSH_OK"
+      displayName: 'Test SSH Connection'
+
+    - script: |
+        ansible-playbook -i inventory.ini site.yml \
+          -u $(VM_USER) \
+          --private-key ~/.ssh/reactAppKey \
+          -e "db_password=$(db_password)" \
+          -e "db_user=$(db_user)" \
+          -e "db_name=$(db_name)" \
+          -e "db_host=$(DB_HOST)"
+      displayName: 'Run Ansible Playbook'

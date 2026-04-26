@@ -41,10 +41,10 @@ stages:
         echo "--- Validating key file ---"
         chmod 600 $(sshPrivateKey.secureFilePath)
         head -1 $(sshPrivateKey.secureFilePath)
-        tail -1 $(sshPublicKey.secureFilePath)
-        wc -l $(sshPublicKey.secureFilePath)
+        tail -1 $(sshPrivateKey.secureFilePath)
+        wc -l $(sshPrivateKey.secureFilePath)
         echo "--- Derived public key ---"
-        ssh-keygen -y -f $(sshPublicKey.secureFilePath)
+        ssh-keygen -y -f $(sshPrivateKey.secureFilePath)
       displayName: 'Validate Key File'
 
     - script: |
@@ -62,7 +62,7 @@ stages:
         ansible-playbook -i inventory.ini site.yml \
           -u $(VM_USER) \
           --private-key ~/.ssh/reactAppKey \
-          -e "db_password=$(db_password)" \
+          -e "db_password=$(db_pass)" \
           -e "db_user=$(db_user)" \
           -e "db_name=$(db_name)" \
           -e "db_host=$(DB_HOST)"
